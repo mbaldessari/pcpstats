@@ -1,0 +1,102 @@
+#!/usr/bin/python
+# pcpstats - pcp(1) report graphing utility
+# Copyright (C) 2014  Michele Baldessari
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+# MA 02110-1301, USA.
+
+from __future__ import print_function
+
+import argparse
+import dateutil
+import os
+import sys
+
+from pcp_stats import PcpStats
+
+VERSION = '0.1'
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="{0} - analyzes pcp archive files and "
+                                     "produces a pdf report".format(sys.argv[0]),
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument('pcp_files', metavar='pcp_files', nargs='*', help="""
+                        PCP archive files to examine. It is possible to specify a
+                        single folder, in which case it will look for all the
+                        files and order them by file date. If the
+                        directory containing the sar files is part of an
+                        sosreport, it will try to resulve the interrupts
+                        source""")
+
+    parser.add_argument('--version', dest='version', action='store_true', default=False, help="""
+                        Show the program's version""")
+
+    parser.add_argument('--list', dest='list_metrics', action='store_true', default=False, help="""
+                        List the metrics contained in the archive file and some other metadata""")
+
+    parser.add_argument('--start', default='', dest='start_time', help="""
+                        Set a start time for the analysis. Any data collected before the start
+                        time will be ignored""")
+
+    parser.add_argument('--end', default='', dest='end_time', help="""
+                        Set an end time for the analysis. Any data collected after the end
+                        time will be ignored""")
+
+    args = parser.parse_args()
+
+    if args.version:
+        print("{0} - Version: {1}".format(sys.argv[0], VERSION))
+        sys.exit(0)
+
+    if len(args.pcp_files) == 1 and not os.path.exists(args.pcp_files[0]):
+        print("Path does not exist: {0}".format(args.pcp_files[0]))
+        sys.exit(-1)
+
+    # If the only argument is a directory fetch all the sar files and order
+    # them automatically
+    if len(args.pcp_files) == 1 and os.path.isdir(args.pcp_files[0]):
+        print("No pcp files found in dir: {0}".format(args.pcp_files[0]))
+        sys.exit(-1)
+
+    print("Parsing files: {0}".format(" ".join(map(os.path.basename, args.pcp_files))), end='')
+    if len(args.pcp_files) == 0:
+        print("Error: No pcp files passed as argument")
+        sys.exit(-1)
+    print()
+
+    s = None
+    e = None
+    if args.start_time != '':
+        try:
+            s = dateutil.parser.parse(args.start_time)
+        except:
+            print("Error: Parsing {0}".format(args.start_time))
+            sys.exit(-1)
+
+    if args.end_time != '':
+        try:
+            e = dateutil.parser.parse(args.end_time)
+        except:
+            print("Error: Parsing {0}".format(args.end_time))
+            sys.exit(-1)
+
+    pcpstats = PcpStats(args.pcp_files[0], start_time=s, end_time=e)
+    if args.list_metrics:
+        pcpstats.print_info()
+    else:
+        pcpstats.output()
+
+# vim: autoindent tabstop=4 expandtab smarttab shiftwidth=4 softtabstop=4 tw=0
