@@ -105,25 +105,41 @@ class PcpStats(object):
         elif inc and not exc: # Only include filter specified
             metrics = sorted(self.pcparchive.get_metrics())
             for i in inc:
-                matched = filter(lambda x: re.match(i, x), metrics)
+                try:
+                    matched = filter(lambda x: re.match(i, x), metrics)
+                except:
+                    print("Failed to parse: {0}".format(i))
+                    sys.exit(-1)
                 self.metrics.extend(matched)
         elif not inc and exc: # Only exclude filter specified
             metrics = sorted(self.pcparchive.get_metrics())
             matched = []
             for i in exc:
-                matched.extend(filter(lambda x: re.match(i, x), metrics))
+                try:
+                    matched.extend(filter(lambda x: re.match(i, x), metrics))
+                except:
+                    print("Failed to parse: {0}".format(i))
+                    sys.exit(-1)
 
             self.metrics = sorted(list(set(metrics) - set(matched)))
         else:
             all_metrics = sorted(self.pcparchive.get_metrics())
             matched = []
             for i in exc:
-                matched.extend(filter(lambda x: re.match(i, x), all_metrics))
+                try:
+                    matched.extend(filter(lambda x: re.match(i, x), all_metrics))
+                except:
+                    print("Failed to parse: {0}".format(i))
+                    sys.exit(-1)
 
             delta_metrics = sorted(list(set(all_metrics) - set(matched)))
             metrics = sorted(self.pcparchive.get_metrics())
             for i in inc:
-                matched = filter(lambda x: re.match(i, x), metrics)
+                try:
+                    matched = filter(lambda x: re.match(i, x), metrics)
+                except:
+                    print("Failed to parse: {0}".format(i))
+                    sys.exit(-1)
                 delta_metrics.extend(matched)
             self.metrics = delta_metrics
 
