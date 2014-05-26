@@ -297,8 +297,6 @@ class PcpStats(object):
         print("Building pdf: ", end='')
         # Add with the lists of the string metrics
         data = [('Metric', 'Timestamp', 'Value')]
-        self._do_heading('String metrics', doc.h1)
-        self.story.append(Spacer(1, 0.2 * inch))
         for metric in string_metrics:
             last_value = None
             for indom in self.all_data[metric]:
@@ -316,10 +314,13 @@ class PcpStats(object):
                        ('RIGHTPADDING', (0,0), (-1,-1), 3),
                        ('FONTSIZE', (0,0), (-1,-1), 10),
                        ('FONTNAME', (0,0), (-1,0), 'Times-Bold'), ]
-        table = Table(data)
-        table.setStyle(tablestyle)
-        self.story.append(table)
-        self.story.append(PageBreak())
+        if len(data) > 1:
+            self._do_heading('String metrics', doc.h1)
+            self.story.append(Spacer(1, 0.2 * inch))
+            table = Table(data)
+            table.setStyle(tablestyle)
+            self.story.append(table)
+            self.story.append(PageBreak())
         # Add the graphs to the pdf
         last_category = ''
         for metric in done_metrics:
