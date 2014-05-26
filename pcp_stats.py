@@ -31,6 +31,7 @@ from reportlab.platypus.paragraph import Paragraph
 from reportlab.platypus import PageBreak, Image, Spacer, Table
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import inch
+import reportlab.lib.colors
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -61,6 +62,13 @@ X_AXIS = ('Time', 12, '%m-%d %H:%M', 20)
 # Threshold above which the legend is placed on the bottom
 # of the page
 LEGEND_THRESHOLD = 50
+
+def ellipsize(text, limit=100):
+    '''Truncates a string in a nice-formatted way'''
+    ret = text[:limit].rsplit(' ', 1)[0]
+    if len(ret) > limit - 3:
+        ret = ret + '...'
+    return ret
 
 def graph_wrapper((pcparch_obj, metric)):
     """This is a wrapper due to pool.map() single argument limit"""
@@ -260,12 +268,30 @@ class PcpStats(object):
         count = 0
         print("Building pdf: ", end='')
         # Add with the lists of the string metrics
-        data = []
+        data = [('Metric', 'Timestamp', 'Value')]
+        self._do_heading('String metrics', doc.h1)
+        self.story.append(Spacer(1, 0.2 * inch))
         for metric in string_metrics:
-            data.append((metric, '%s' % self.all_data[metric]))
+            last_value = None
+            for indom in self.all_data[metric]:
+                timestamps = self.all_data[metric][indom][0]
+                values = self.all_data[metric][indom][1]
+                for (ts, v) in zip(timestamps, values):
+                    if last_value != v:
+                        text = ellipsize(v)
+                        data.append((metric, '%s' % ts, text))
+                        last_value = v
 
-        print(data)
-        self.story.append(Table(data))
+        tablestyle = [ ('GRID', (0,0), (-1,-1), 1, reportlab.lib.colors.black),
+                       ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                       ('LEFTPADDING', (0,0), (-1,-1), 3),
+                       ('RIGHTPADDING', (0,0), (-1,-1), 3),
+                       ('FONTSIZE', (0,0), (-1,-1), 10),
+                       ('FONTNAME', (0,0), (-1,0), 'Times-Bold'), ]
+        table = Table(data)
+        table.setStyle(tablestyle)
+        self.story.append(table)
+        self.story.append(PageBreak())
         # Add the graphs to the pdf
         last_category = ''
         for metric in done_metrics:

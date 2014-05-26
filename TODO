@@ -1,12 +1,3 @@
-- Take care of pure string metrics and add them in table form
-  to the pdf (i.e. filesys.mountdir:
-  Metric: filesys.mountdir - Indom: /dev/dm-12, network.interface.mtu)
-  
-  We could only print them when they change, like this:
-  2014 05 01 10:00 - kernel.release: 2.18.0
-  2014 05 05 10:00 - kernel.release: 2.19.0
-  etc..
-
 - Some metrics make more sense to be plotted divided by time
   (kernel.cpu.all.* for example)
   Values of counter semantics metrics (PM_SEM_COUNTER) are commonly
