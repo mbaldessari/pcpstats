@@ -22,6 +22,7 @@ from hashlib import sha1
 from itertools import repeat
 import multiprocessing
 import os
+import re
 import resource
 import shutil
 import sys
@@ -90,7 +91,7 @@ def print_mem_usage(data):
 class PcpStats(object):
     story = []
 
-    def __init__(self, args, start_time=None, end_time=None):
+    def __init__(self, args, start_time=None, end_time=None, inc=None, exc=None):
         self.args = args
         self.pcphelp = PcpHelp()
         self.pcparchive = PcpArchive(args, start=start_time, end=end_time)
@@ -98,7 +99,34 @@ class PcpStats(object):
         self.tempdir = tempfile.mkdtemp(prefix='pcpstats', dir='/var/tmp')
         # This contains all the metrics found in the archive file
         self.all_data = {}
-        self.metrics = sorted(self.pcparchive.get_metrics())
+        self.metrics = []
+        if not inc and not exc:
+            self.metrics = sorted(self.pcparchive.get_metrics())
+        elif inc and not exc: # Only include filter specified
+            metrics = sorted(self.pcparchive.get_metrics())
+            for i in inc:
+                matched = filter(lambda x: re.match(i, x), metrics)
+                self.metrics.extend(matched)
+        elif not inc and exc: # Only exclude filter specified
+            metrics = sorted(self.pcparchive.get_metrics())
+            matched = []
+            for i in exc:
+                matched.extend(filter(lambda x: re.match(i, x), metrics))
+
+            self.metrics = sorted(list(set(metrics) - set(matched)))
+        else:
+            all_metrics = sorted(self.pcparchive.get_metrics())
+            matched = []
+            for i in exc:
+                matched.extend(filter(lambda x: re.match(i, x), all_metrics))
+
+            delta_metrics = sorted(list(set(all_metrics) - set(matched)))
+            metrics = sorted(self.pcparchive.get_metrics())
+            for i in inc:
+                matched = filter(lambda x: re.match(i, x), metrics)
+                delta_metrics.extend(matched)
+            self.metrics = delta_metrics
+
         matplotlib.rcParams['figure.max_open_warning'] = 100
 
     def _graph_filename(self, metrics, extension='.png'):

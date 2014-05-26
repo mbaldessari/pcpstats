@@ -55,6 +55,18 @@ if __name__ == '__main__':
                         Set an end time for the analysis. Any data collected after the end
                         time will be ignored""")
 
+    parser.add_argument('--include', default=None, dest='includes', action='append', help='''
+                        Includes metrics which match the specified regular expression. For example:
+                        --include 'network.*'. The option can be specified multiple times. If only
+                        --include is specified, onle the matching metrics will be included in the
+                        output. If both --include and --exclude are specified first all excluded
+                        metrics are evaluted and then the included ones''')
+
+    parser.add_argument('--exclude', default=None, dest='excludes', action='append', help='''
+                        Excludes metrics which match the specified regular expression. For example:
+                        --exclude 'network.*'. The option can be specified multiple times. If only
+                        --exclude is specified, all metrics are shown except the specified ones''')
+
     args = parser.parse_args()
 
     if args.version:
@@ -93,7 +105,8 @@ if __name__ == '__main__':
             print("Error: Parsing {0}".format(args.end_time))
             sys.exit(-1)
 
-    pcpstats = PcpStats(args.pcp_files[0], start_time=s, end_time=e)
+    pcpstats = PcpStats(args.pcp_files[0], start_time=s, end_time=e,
+                        inc=args.includes, exc=args.excludes)
     if args.list_metrics:
         pcpstats.print_info()
     else:
