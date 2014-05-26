@@ -7,9 +7,6 @@
   2014 05 05 10:00 - kernel.release: 2.19.0
   etc..
 
-- Kill the hand-written list of graphs to skip, by properly ignoring
-  values that are strings
-
 - Some metrics make more sense to be plotted divided by time
   (kernel.cpu.all.* for example)
 

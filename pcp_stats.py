@@ -62,20 +62,6 @@ X_AXIS = ('Time', 12, '%m-%d %H:%M', 20)
 # of the page
 LEGEND_THRESHOLD = 50
 
-SKIP_GRAPHS = ('hinv.cpu.flags', 'hinv.cpu.model', 'filesys.mountdir',
-               'hinv.cpu.model_name', 'hinv.cpu.vendor', 'hinv.map.lvname',
-               'hinv.map.scsi', 'hinv.machine', 'kernel.uname.distro',
-               'kernel.uname.release', 'kernel.uname.sysname',
-               'kernel.uname.machine', 'network.interface.inet_addr',
-               'network.interface.hw_addr', 'network.interface.ipv6_addr',
-               'network.interface.ipv6_scope', 'kernel.uname.version',
-               'kernel.uname.nodename', 'pmcd.pmlogger.archive',
-               'pmcd.client.start_date', 'pmcd.client.whoami',
-               'pmcd.pmlogger.pmcd_host', 'pmcd.pmlogger.archive',
-               'pmcd.pmlogger.host', 'pmcd.hostname', 'pmcd.version',
-               'pmcd.simabi', 'pmcd.timezone', 'pmda.uname',
-               'pmda.version', 'filesys.blocksize', 'filesys.capacity')
-
 def graph_wrapper((pcparch_obj, metric)):
     """This is a wrapper due to pool.map() single argument limit"""
     fname = pcparch_obj._graph_filename([metric])
@@ -104,8 +90,7 @@ class PcpStats(object):
         self.tempdir = tempfile.mkdtemp(prefix='pcpstats', dir='/var/tmp')
         # This contains all the metrics found in the archive file
         self.all_data = {}
-        self.metrics = filter(lambda x: x not in SKIP_GRAPHS,
-                         sorted(self.pcparchive.get_metrics()))
+        self.metrics = sorted(self.pcparchive.get_metrics())
         matplotlib.rcParams['figure.max_open_warning'] = 100
 
     def _graph_filename(self, metrics, extension='.png'):
@@ -132,6 +117,17 @@ class PcpStats(object):
             sys.stdout.write('.')
             sys.stdout.flush()
             self.all_data[metric] = self.pcparchive.get_values(metric)
+
+    def is_string_metric(self, metric):
+        '''Given a metric returns True if values' types are strings'''
+        data = self.all_data[metric]
+        isstring = False
+        for indom in data:
+            values = data[indom][1]
+            if all([isinstance(v, str) for v in values]):
+                isstring = True
+                break
+        return isstring
 
     def create_graph(self, fname, title, metrics):
         '''Take a title and a list of metrics and creates an image of
@@ -169,8 +165,15 @@ class PcpStats(object):
                     lbl = indom
 
                 found = True
-                axes.plot(timestamps, dataset, 'o:', label=lbl,
-                          color=scalar_map.to_rgba(counter))
+                try:
+                    axes.plot(timestamps, dataset, 'o:', label=lbl,
+                              color=scalar_map.to_rgba(counter))
+                except:
+                    import traceback
+                    print("Metric: {0}".format(metric))
+                    print(traceback.format_exc())
+                    sys.exit(-1)
+
                 indoms += 1
 
         if not found:
@@ -220,18 +223,26 @@ class PcpStats(object):
         self.story.append(doc.toc)
         self.story.append(PageBreak())
 
+        numeric_metrics = []
+        string_metrics = []
+        for metric in self.metrics:
+            if self.is_string_metric(metric):
+                string_metrics.append(metric)
+            else:
+                numeric_metrics.append(metric)
+
         done_metrics = []
         # This list contains the metrics that contained data
         print('Creating graphs: ', end='')
         if THREADED:
             pool = multiprocessing.Pool(NR_CPUS)
-            l = zip(repeat(self), self.metrics)
+            l = zip(repeat(self), numeric_metrics)
             metrics_rets = pool.map(graph_wrapper, l)
             (metrics, rets) = zip(*metrics_rets)
             done_metrics = [metric for (metric, ret) in metrics_rets if ret]
         else:
             count = 0
-            for metric in self.metrics:
+            for metric in numeric_metrics:
                 fname = self._graph_filename([metric])
                 if self.create_graph(fname, metric, [metric]):
                     sys.stdout.write('.')
