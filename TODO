@@ -9,6 +9,35 @@
 
 - Some metrics make more sense to be plotted divided by time
   (kernel.cpu.all.* for example)
+  Values of counter semantics metrics (PM_SEM_COUNTER) are commonly
+  reported after rate conversion (requires successive samples, and
+  the value plotted is the value-delta divided by the time-delta), so
+  that MB/sec, or utilizations, are reported instead of raw values.
 
 - Make the parsing of the archive SMP-aware (currently only the graph
   generation via matplotlib is SMP-aware)
+
+- Cluster together within a table all the metrics that share an indom
+  so either a table that shows all the metrics shared by the same indom.
+  Like: eth0: network.interface.in.bytes, network.interface.mtu, ...
+
+- Consider using pmOptions class for command line processing - it'll
+  automate some stuff for you (and add common, missing options - $TZ
+  handling, interval, #samples, -A/-O/-S/-T - parsing them the same
+  way all the other PCP tools do.  e.g. the start/end parsing here uses
+  dateutil.parser.parse whereas PCP tools use libpcp magic which allows
+  several alternative types of syntax (absolute times, relative times,
+  and recently free-form times like "yesterday, 10am").  Its also all
+  done below the option-processing API, so you don't have to manually
+  handle it.
+
+- The options stuff also ties into context creation, so you can take
+  your pmOptions object and pass it to pmapi.ctx.fromOptions() and you
+  get back a pmContext class all correctly setup and ready to go (it'll
+  open the archive(s) passed in).
+
+- There is a plan to add a mode to libpcp on archive context creation
+  where it will open a directory (like code here wishes to) and produce
+  a context which sources data from all archives in that directory.
+  When that work is tackled, it may simplify the mode you have here
+  (planned?) where it scans a directory for pcp archives.

@@ -28,7 +28,7 @@ import sys
 import tempfile
 
 from reportlab.platypus.paragraph import Paragraph
-from reportlab.platypus import PageBreak, Image, Spacer
+from reportlab.platypus import PageBreak, Image, Spacer, Table
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import inch
 
@@ -259,6 +259,14 @@ class PcpStats(object):
         # At this point all images are created let's build the pdf
         count = 0
         print("Building pdf: ", end='')
+        # Add with the lists of the string metrics
+        data = []
+        for metric in string_metrics:
+            data.append((metric, '%s' % self.all_data[metric]))
+
+        print(data)
+        self.story.append(Table(data))
+        # Add the graphs to the pdf
         last_category = ''
         for metric in done_metrics:
             # FIXME: this needs an appropriate method in pcp_archive
