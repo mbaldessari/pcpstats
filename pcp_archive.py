@@ -66,13 +66,8 @@ class PcpArchive(object):
         self.start = start
         self.end = end
 
-        # FIXME: right now I am using all PMIDs. This is because we
-        # cannot be sure that a specific one always exists (??)
-        # (Likely any pmid will do here)
-        metrics = self.get_metrics()
-        pmids = self.get_pmids(metrics)
-        result = self.context.pmFetch(pmids)
-        self.start_time = result.contents.timestamp
+        tmp = self.context.pmGetArchiveLabel()
+        self.start_time = tmp.start
         self.end_time = self.context.pmGetArchiveEnd()
 
     def _timestamp_to_datetime(self, tstamp):
