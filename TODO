@@ -21,17 +21,25 @@
   and recently free-form times like "yesterday, 10am").  Its also all
   done below the option-processing API, so you don't have to manually
   handle it.
-
-- The options stuff also ties into context creation, so you can take
+  The options stuff also ties into context creation, so you can take
   your pmOptions object and pass it to pmapi.ctx.fromOptions() and you
   get back a pmContext class all correctly setup and ready to go (it'll
   open the archive(s) passed in).
+  [Michele] It seems that pmOption is an either or approach. So we
+  have the following options:
+  1) We manage a way to pass all the arguments that are not parsed by
+  python's argparse to pmOptions
+  2) We create some wrappers that integrate argparse and pmOptions
+  3) We move to pmOptions completely
 
 - There is a plan to add a mode to libpcp on archive context creation
   where it will open a directory (like code here wishes to) and produce
   a context which sources data from all archives in that directory.
   When that work is tackled, it may simplify the mode you have here
   (planned?) where it scans a directory for pcp archives.
+  [Michele] This needs revisiting when this code appears upstream
+
+- Make use of the convenience pmcc.py class
 
 - Kill the numerous FIXME in the code
 
