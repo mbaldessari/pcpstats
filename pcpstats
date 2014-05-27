@@ -67,6 +67,14 @@ if __name__ == '__main__':
                         --exclude 'network.*'. The option can be specified multiple times. If only
                         --exclude is specified, all metrics are shown except the specified ones''')
 
+    parser.add_argument('--graph', default=[], dest='graphs', action='append', help='''
+                        Add ability to create graphs with multiple metrics:
+                        --custom 'foo:network.tcp.outrsts,network.tcp.ofoqueue'
+                        The above would create a 'foo' page with the two metrics combined in
+                        a single graph. The general syntax is:
+                        --custom '<label>:<metric1>,<metric2>,...<metricN>'
+                        The option can be specified multiple times''')
+
     args = parser.parse_args()
 
     if args.version:
@@ -106,7 +114,7 @@ if __name__ == '__main__':
             sys.exit(-1)
 
     pcpstats = PcpStats(args.pcp_files[0], start_time=s, end_time=e,
-                        inc=args.includes, exc=args.excludes)
+                        inc=args.includes, exc=args.excludes, graphs=args.graphs)
     if args.list_metrics:
         pcpstats.print_info()
     else:

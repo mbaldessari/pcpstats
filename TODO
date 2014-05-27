@@ -35,15 +35,18 @@
 
 - Kill the numerous FIXME in the code
 
-- Add ability to create custom graphs with multipli metrics:
-  --custom 'footcp:network.tcp.outrsts,network.tcp.ofoqueue'
-  The above would create a footcp  page with the two metrics combined in
-  a single graph. The general syntax should be:
-  --custom '<label>:<metric1>,<metric2>,...<metricN>'
-
 - Create a manpage directly from the argparse text?
   (https://andialbrecht.wordpress.com/2009/03/17/creating-a-man-page-with-distutils-and-optparse/)
   (http://bugs.python.org/issue14102)
 
 - Work on moving some of the basic archive parsing functionality
   in the pcp python bindings themselves
+
+- Add bash autocompletion
+
+- Make PcpStats.category return (prefix, metrics) and not just prefix
+
+- Currently if you create a custom graph with two metrics that have the same indoms it is impossible
+  to distringuish which label (indom) is associated with which metric. Fero example:
+  ./pcpstats --include 'network.*' --graph 'foo:network.interface.in.bytes,network.interface.out.bytes' 
+  tests/pcp-files/server1.internal/20140510.08.47.0

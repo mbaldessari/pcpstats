@@ -51,7 +51,7 @@ from pcp_archive import PcpArchive, PcpHelp
 
 # If we should try and create the graphs in parallel
 # brings a nice speedup on multi-core/smp machines
-THREADED = True
+THREADED = False
 # None means nr of available CPUs
 NR_CPUS = None
 
@@ -91,14 +91,16 @@ def print_mem_usage(data):
 class PcpStats(object):
     story = []
 
-    def __init__(self, args, start_time=None, end_time=None, inc=None, exc=None):
+    def __init__(self, args, start_time=None, end_time=None, inc=None, exc=None,
+                 graphs=None):
         self.args = args
         self.pcphelp = PcpHelp()
         self.pcparchive = PcpArchive(args, start=start_time, end=end_time)
         # Using /var/tmp as /tmp is ram-mounted these days
         self.tempdir = tempfile.mkdtemp(prefix='pcpstats', dir='/var/tmp')
-        # This contains all the metrics found in the archive file
+        # This will contain all the metrics found in the archive file
         self.all_data = {}
+        # Verify which set of metrics are to be used
         self.metrics = []
         if not inc and not exc:
             self.metrics = sorted(self.pcparchive.get_metrics())
@@ -143,18 +145,40 @@ class PcpStats(object):
                 delta_metrics.extend(matched)
             self.metrics = delta_metrics
 
+        self.custom_graphs = []
+        # Verify if there are any custom graphs
+        for graph in graphs:
+            try:
+                (label,metrics_str) = graph.split(':')
+            except:
+                print("Failed to parse: {0}".format(i))
+                sys.exit(-1)
+            if label in self.metrics:
+                print("Cannot use label {0}. It is an existing metric".format(label))
+                sys.exit(-1)
+            metrics = metrics_str.split(',')
+            for metric in metrics:
+                if metric not in self.metrics:
+                    print("Metric '{0}' is not in the available metrics".format(metric))
+                    sys.exit(-1)
+            self.custom_graphs.append((label, metrics))
+
         matplotlib.rcParams['figure.max_open_warning'] = 100
 
     def _graph_filename(self, metrics, extension='.png'):
         '''Creates a unique constant file name given a list of metrics'''
-        temp = "_".join(metrics)
-        digest = sha1()
-        digest.update(temp)
-        #fname = os.path.join(self.tempdir, digest.hexdigest() + extension)
+        if isinstance(metrics, list):
+            temp = ''
+            for i in metrics:
+                temp += i
+        else:
+            temp = "_".join(metrics)
         fname = os.path.join(self.tempdir, temp + extension)
         return fname
 
     def _do_heading(self, text, sty):
+        if isinstance(text, list):
+            text = "_".join(text)
         # create bookmarkname
         bn = sha1(text + sty.name).hexdigest()
         # modify paragraph text to include an anchor point with name bn
@@ -169,6 +193,22 @@ class PcpStats(object):
             sys.stdout.write('.')
             sys.stdout.flush()
             self.all_data[metric] = self.pcparchive.get_values(metric)
+
+    def category(self, metrics):
+        '''Return the category given one or a list of metric strings'''
+        if isinstance(metrics, str):
+            return metrics.split('.')[0]
+        elif isinstance(metrics, list):
+            category = None
+            for metric in metrics:
+                prefix = metric.split('.')[0]
+                if category == None and prefix != category:
+                    category = prefix
+                elif category != None and prefix != category:
+                    raise Exception('Multiple categories in %s' % metrics)
+            return category
+        else:
+            raise Exception('Cannot find category for %s' % metrics)
 
     def is_string_metric(self, metric):
         '''Given a metric returns True if values' types are strings'''
@@ -200,14 +240,25 @@ class PcpStats(object):
         axes.yaxis.get_major_formatter().set_scientific(False)
         found = False
         indoms = 0
+        counter = 0
+        # First we calculate the maximum number of colors needed
+        max_values_len = 0
         for metric in metrics:
             values = self.all_data[metric]
-            color_norm = colors.Normalize(vmin=0, vmax=len(values) - 1)
-            scalar_map = cm.ScalarMappable(norm=color_norm,
-                                           cmap=plt.get_cmap('Set1'))
-            for counter, indom in enumerate(sorted(values)):
+            if len(values) > max_values_len:
+                max_values_len = len(values)
+
+        vmax_color = max_values_len * len(metrics)
+        color_norm = colors.Normalize(vmin=0, vmax=vmax_color)
+        scalar_map = cm.ScalarMappable(norm=color_norm,
+                                       cmap=plt.get_cmap('Set1'))
+
+        # Then we walk the metrics and plot
+        for metric in metrics:
+            values = self.all_data[metric]
+            for indom in sorted(values):
                 (timestamps, dataset) = values[indom]
-                # FIXME: currently if there is only one timestamp,value like with filesys.blocksize
+                # FIXME: currently if there is only one (timestamp,value) like with filesys.blocksize
                 # we just do not graph the thing
                 if len(timestamps) <= 1:
                     continue
@@ -227,6 +278,7 @@ class PcpStats(object):
                     sys.exit(-1)
 
                 indoms += 1
+                counter += 1
 
         if not found:
             return False
@@ -275,13 +327,30 @@ class PcpStats(object):
         self.story.append(doc.toc)
         self.story.append(PageBreak())
 
-        numeric_metrics = []
+        # Prepare the full list of graphs that will be drawn
+        # Start with any custom graphs if they exist and
+        # proceed with the remaining ones. Split the metrics
+        # that have string values into a separate array
+        # all_graphs = [(label, fname, (m0, m1, .., mN), text), ...]
+        self.all_graphs = []
         string_metrics = []
+        for graph in self.custom_graphs:
+            (label, metrics) = graph
+            fname = self._graph_filename(label)
+            text = None
+            if isinstance(metrics, str) and metrics in self.pcphelp.help_text:
+                text = '<strong>%s</strong>: %s' % (metrics, self.pcphelp.help_text[metrics])
+            self.all_graphs.append((label, fname, metrics, text))
+
         for metric in self.metrics:
             if self.is_string_metric(metric):
                 string_metrics.append(metric)
             else:
-                numeric_metrics.append(metric)
+                fname = self._graph_filename([metric])
+                text = None
+                if isinstance(metric, str) and metric in self.pcphelp.help_text:
+                    text = '<strong>%s</strong>: %s' % (metric, self.pcphelp.help_text[metric])
+                self.all_graphs.append((metric, fname, [metric], text))
 
         done_metrics = []
         # This list contains the metrics that contained data
@@ -293,25 +362,19 @@ class PcpStats(object):
             (metrics, rets) = zip(*metrics_rets)
             done_metrics = [metric for (metric, ret) in metrics_rets if ret]
         else:
-            count = 0
-            for metric in numeric_metrics:
-                fname = self._graph_filename([metric])
-                if self.create_graph(fname, metric, [metric]):
+            for graph in self.all_graphs:
+                (label, fname, metrics, text) = graph
+                if self.create_graph(fname, label, metrics):
                     sys.stdout.write('.')
-                    done_metrics.append(metric)
+                    done_metrics.append(graph)
                 else:
                     # Graphs had all zero values
                     sys.stdout.write('-')
                 sys.stdout.flush()
-                count += 1
-                #if count > 70:
-                #    break
 
         print()
-        # At this point all images are created let's build the pdf
-        count = 0
-        print("Building pdf: ", end='')
-        # Add with the lists of the string metrics
+        # Build the string metrics table. It only prints
+        # a value if it changed over time
         data = [('Metric', 'Timestamp', 'Value')]
         for metric in string_metrics:
             last_value = None
@@ -337,30 +400,27 @@ class PcpStats(object):
             table.setStyle(tablestyle)
             self.story.append(table)
             self.story.append(PageBreak())
+
+        # At this point all images are created let's build the pdf
+        print("Building pdf: ", end='')
         # Add the graphs to the pdf
         last_category = ''
-        for metric in done_metrics:
-            # FIXME: this needs an appropriate method in pcp_archive
-            category = metric.split('.')[0]
+        for graph in done_metrics:
+            (label, fname, metrics, text) = graph
+            category = self.category(metrics)
             if last_category != category:
                 # FIXME: _do_heading should be moved in some other class/object/module
                 self._do_heading(category, doc.h1)
                 last_category = category
 
-            fname = self._graph_filename([metric])
-            self._do_heading(metric, doc.h2_invisible)
+            self._do_heading(label, doc.h2_invisible)
             self.story.append(Image(fname, width=GRAPH_SIZE[0]*inch,
                               height=GRAPH_SIZE[1]*inch))
-            if metric in self.pcphelp.help_text:
-                text = '<strong>%s</strong>: %s' % (metric,
-                        self.pcphelp.help_text[metric])
+            if text:
                 self.story.append(Paragraph(text, doc.normal))
             self.story.append(PageBreak())
-            count += 1
             sys.stdout.write('.')
             sys.stdout.flush()
-            #if count > 70:
-            #    break
 
         doc.multiBuild(self.story)
         print()
@@ -394,4 +454,3 @@ class PcpStats(object):
             text = textwrap.fill(line, width=columns, initial_indent='',
                                  subsequent_indent=indent)
             print('{0}: {1}'.format(prefix, text))
-
