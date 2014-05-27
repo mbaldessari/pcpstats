@@ -58,16 +58,6 @@ class PcpArchive(object):
     result = None
     pmns = {}
     
-    def _timestamp_to_datetime(self, tstamp):
-        '''Convert a timestamp object (tv_sec + tv_usec) in a datetime
-        object'''
-        secs = tstamp.tv_sec + (tstamp.tv_usec * 10**-6)
-        return datetime.fromtimestamp(secs)
-
-    def _pmns_callback(self, label):
-        '''Callback for the PMNS tree walk'''
-        self.pmns[label] = None
-
     def __init__(self, pcp_fname, start=None, end=None):
         '''Opens a PCP archive and does an initial walk of the PMNS tree'''
         self.pcparchive = pcp_fname
@@ -84,6 +74,16 @@ class PcpArchive(object):
         result = self.context.pmFetch(pmids)
         self.start_time = result.contents.timestamp
         self.end_time = self.context.pmGetArchiveEnd()
+
+    def _timestamp_to_datetime(self, tstamp):
+        '''Convert a timestamp object (tv_sec + tv_usec) in a datetime
+        object'''
+        secs = tstamp.tv_sec + (tstamp.tv_usec * 10**-6)
+        return datetime.fromtimestamp(secs)
+
+    def _pmns_callback(self, label):
+        '''Callback for the PMNS tree walk'''
+        self.pmns[label] = None
 
     def close(self):
         if self.context and self.result:
@@ -110,11 +110,24 @@ class PcpArchive(object):
         d2 = self._timestamp_to_datetime(self.end_time)
         return (d1, d2)
 
-    def get_values(self, metrics):
-        '''Given a single metric, returns a list of indoms containing
-        (timestamp, value) tuples. If there are no indoms for the
-        metric only a single list containing the (timestamp, value)
-        tuples will be returnes. For example: [(ts1, 1.0), (ts2, 2.0)...]'''
+    def get_values(self, metrics, raw=False):
+        '''Given a list of metrics, it returns a dictionary of dictionaries
+        in the following form:
+        return[metric1] = {'indom1': [(ts0, ts1, .., tsN), (v0, v1, .., vN)],
+                           ....
+                           'indomN': [(ts0, ts1, .., tsN), (v0, v1, .., vN)]}
+        return[metric2] = {'indom1': [(ts0, ts1, .., tsN), (v0, v1, .., vN)],
+                           ....
+                           'indomN': [(ts0, ts1, .., tsN), (v0, v1, .., vN)]}
+
+        (ts0, .., tsN) are timestamps in datetime format and (v0, .., vN) are
+        the actual values. If 'raw' is set to False, then values that have
+        a semantic value equal to PM_SEM_COUNTER, will be returned as follows:
+        Instead of [(ts0, ts1, ts2, .., tsN), (v0, v1, v2, .., vN)] the rates
+        will be returned:
+        ret[metric] = {'indom1':
+        [(ts1, ts2, .., tsN), ((v1-v0)/(ts1-ts0), (v2-v1)/(ts2-ts1), ...)]}'''
+
         # Make sure we start at the beginning of the archive
         self.context.pmSetMode(c_api.PM_MODE_FORW, self.start_time, 0)
         temp_dict = {}
@@ -126,6 +139,8 @@ class PcpArchive(object):
             except pmapi.pmErr: # Archive is finished
                 break
 
+            # If we're outside the class' defined time interval we simply
+            # ignore the timestamp and value
             dt = self._timestamp_to_datetime(result.contents.timestamp)
             if ((self.start and dt < self.start) or
                 (self.end and dt > self.end)):
