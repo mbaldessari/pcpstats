@@ -40,11 +40,6 @@
 
 - Add bash autocompletion
 
-- Currently if you create a custom graph with two metrics that have the same indoms it is impossible
-  to distringuish which label (indom) is associated with which metric. Fero example:
-  ./pcpstats --include 'network.*' --graph 'foo:network.interface.in.bytes,network.interface.out.bytes' 
-  tests/pcp-files/server1.internal/20140510.08.47.0
-
 - Add a default set of custom graphs that are always automatically included
 
 - Verify that all the maths in rate conversion are always correct

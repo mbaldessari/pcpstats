@@ -28,6 +28,10 @@ from pcp2pdf_stats import PcpStats
 
 VERSION = '0.1'
 
+default_custom_graphs = [
+        'proc.runq:proc.runq.blocked,proc.runq.defunct,proc.runq.runnable,proc.runq.sleeping',
+    ]
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="{0} - analyzes pcp archive files and "
                                      "produces a pdf report".format(sys.argv[0]),
@@ -67,7 +71,7 @@ if __name__ == '__main__':
                         --exclude 'network.*'. The option can be specified multiple times. If only
                         --exclude is specified, all metrics are shown except the specified ones''')
 
-    parser.add_argument('--graph', default=[], dest='graphs', action='append', help='''
+    parser.add_argument('--graph', default=default_custom_graphs, dest='graphs', action='append', help='''
                         Add ability to create graphs with multiple metrics:
                         --custom 'foo:network.tcp.outrsts,network.tcp.ofoqueue'
                         The above would create a 'foo' page with the two metrics combined in

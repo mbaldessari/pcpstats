@@ -236,8 +236,9 @@ class PcpStats(object):
         '''Parses the archive and stores all the metrics in self.all_data. Returns a dictionary
         containing the metrics which have been rate converted'''
         (all_data, self.skipped_graphs) = self.pcparchive.get_values(progress=progress_callback)
+        print(' total of {0} graphs'.format(len(all_data), end=''))
         if len(self.skipped_graphs) > 0:
-            print('skipped {0} graphs'.format(len(self.skipped_graphs)), end='')
+            print(' skipped {0} graphs'.format(len(self.skipped_graphs)), end='')
 
         rate_converted = {}
         # Prune all the sets of values where all values are zero as it makes
@@ -320,6 +321,7 @@ class PcpStats(object):
             if len(values) > max_values_len:
                 max_values_len = len(values)
 
+        # We need at most number of max(indoms) * metrics colors
         vmax_color = max_values_len * len(metrics)
         color_norm = colors.Normalize(vmin=0, vmax=vmax_color)
         scalar_map = cm.ScalarMappable(norm=color_norm,
@@ -334,10 +336,16 @@ class PcpStats(object):
                 # we just do not graph the thing
                 if len(timestamps) <= 1:
                     continue
-                if indom == 0:
-                    lbl = title
+                if len(metrics) > 1:
+                    if indom == 0:
+                        lbl = metric
+                    else:
+                        lbl = "%s %s" % (metric, indom)
                 else:
-                    lbl = indom
+                    if indom == 0:
+                        lbl = title
+                    else:
+                        lbl = indom
 
                 found = True
                 try:
@@ -410,9 +418,15 @@ class PcpStats(object):
             (label, metrics) = graph
             fname = self._graph_filename(label)
             text = None
-            if isinstance(metrics, str) and metrics in self.pcphelp.help_text:
-                text = '<strong>%s</strong>: %s' % (metrics, self.pcphelp.help_text[metrics])
-            self.all_graphs.append((label, fname, metrics, text))
+            custom_metrics = []
+            for metric in metrics: # verify that the custom graph's metrics actually exist
+                if metric in self.metrics:
+                    custom_metrics.append(metric)
+
+            if len(custom_metrics) > 0:
+                if isinstance(metrics, str) and metrics in self.pcphelp.help_text:
+                    text = '<strong>%s</strong>: %s' % (metrics, self.pcphelp.help_text[metrics])
+                self.all_graphs.append((label, fname, custom_metrics, text))
 
         for metric in self.metrics:
             if self.is_string_metric(metric):
