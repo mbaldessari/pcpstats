@@ -13,7 +13,7 @@ import tempfile
 import time
 import unittest
 
-from pcp_archive import PcpArchive
+from pcp2pdf_archive import PcpArchive
 
 # To debug memory leaks
 USE_MELIAE = False

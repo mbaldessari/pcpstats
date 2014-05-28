@@ -45,8 +45,8 @@ if USE_MELIAE:
     from meliae import scanner, loader
     import objgraph
 
-from pcp_style import PcpDocTemplate, tablestyle
-from pcp_archive import PcpArchive, PcpHelp
+from pcp2pdf_style import PcpDocTemplate, tablestyle
+from pcp2pdf_archive import PcpArchive, PcpHelp
 import cpmapi as c_api
 
 # If we should try and create the graphs in parallel

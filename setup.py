@@ -40,7 +40,7 @@ class DiscoverTest(test):
         discover_and_run_tests()
 
 config = {
-    'name': 'pcpstats',
+    'name': 'pcp2pdf',
     'version': '0.1',
     'author': 'Michele Baldessari',
     'author_email': 'michele@acksyn.org',
@@ -48,7 +48,7 @@ config = {
     'license': 'GPLv2',
     'cmdclass': {'test': DiscoverTest},
     'py_modules': ['pcp_archive', 'pcp_stats'],
-    'scripts': ['pcpstats'],
+    'scripts': ['pcp2pdf'],
     'classifiers': [
         "Development Status :: 3 - Alpha",
         "Topic :: Utilities",

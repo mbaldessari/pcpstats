@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# pcpstats - pcp(1) report graphing utility
+# pcp2pdf - pcp(1) report graphing utility
 # Copyright (C) 2014  Michele Baldessari
 #
 # This program is free software; you can redistribute it and/or
@@ -24,7 +24,7 @@ import dateutil
 import os
 import sys
 
-from pcp_stats import PcpStats
+from pcp2pdf_stats import PcpStats
 
 VERSION = '0.1'
 

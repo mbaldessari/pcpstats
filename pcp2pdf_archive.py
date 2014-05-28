@@ -1,4 +1,4 @@
-# pcpstats - pcp(1) report graphing utility
+# pcp2pdf - pcp(1) report graphing utility
 # Copyright (C) 2014  Michele Baldessari
 #
 # This program is free software; you can redistribute it and/or
