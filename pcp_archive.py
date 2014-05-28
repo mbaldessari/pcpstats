@@ -57,7 +57,7 @@ class PcpArchive(object):
     context = None
     result = None
     pmns = {}
-    
+
     def __init__(self, pcp_fname, start=None, end=None):
         '''Opens a PCP archive and does an initial walk of the PMNS tree'''
         self.pcparchive = pcp_fname
@@ -80,6 +80,32 @@ class PcpArchive(object):
         '''Callback for the PMNS tree walk'''
         self.pmns[label] = None
 
+    def _extract_value(self, result, desc, i, inst=0):
+        '''Return python value given a pmExtractValue set of parameters'''
+        mtype = desc.contents.type
+        value = self.context.pmExtractValue(
+            result.contents.get_valfmt(i),
+            result.contents.get_vlist(i, inst),
+            mtype, mtype)
+
+        if mtype == c_api.PM_TYPE_U64:
+            retval = value.ull
+        elif mtype == c_api.PM_TYPE_U32:
+            retval = value.ul
+        elif mtype == c_api.PM_TYPE_64:
+            retval = value.ll
+        elif mtype == c_api.PM_TYPE_32:
+            retval = value.l
+        elif mtype == c_api.PM_TYPE_STRING:
+            retval = value.cp
+        elif mtype == c_api.PM_TYPE_FLOAT:
+            retval = value.f
+        elif mtype == c_api.PM_TYPE_DOUBLE:
+            retval = value.d
+        else:
+            raise Exception("Metric has unknown type: [%s]" % (mtype))
+        return retval
+
     def close(self):
         if self.context and self.result:
             self.context.pmFreeResult(self.result)
@@ -98,121 +124,97 @@ class PcpArchive(object):
         return self.context.pmLookupName(metrics)
 
     def get_timeinterval(self):
-        '''Returns the a datetime tuple of the start and end of the 
+        '''Returns the a datetime tuple of the start and end of the
         archive'''
         # FIXME: need to use pmLocaltime here (??)
         d1 = self._timestamp_to_datetime(self.start_time)
         d2 = self._timestamp_to_datetime(self.end_time)
         return (d1, d2)
 
-    def get_values(self, metrics, raw=False):
-        '''Given a list of metrics, it returns a dictionary of dictionaries
-        in the following form:
+    def get_values(self, progress=None):
+        '''Returns a dictionary of dictionary containing all the data within
+        a PCP archive log file. Data will be returned as a a tuple
+        (data, skipped_metrics). skipped_metrics is a list of metrics skipped
+        because the archive log was corrupted. data will be in the following
+        form:
         return[metric1] = {'indom1': [(ts0, ts1, .., tsN), (v0, v1, .., vN)],
                            ....
                            'indomN': [(ts0, ts1, .., tsN), (v0, v1, .., vN)]}
-        return[metric2] = {'indom1': [(ts0, ts1, .., tsN), (v0, v1, .., vN)],
+        return[metric2] = {'indom1': [(ts0, ts1, .., tsX), (v0, v1, .., vX)],
                            ....
-                           'indomN': [(ts0, ts1, .., tsN), (v0, v1, .., vN)]}
+                           'indomN': [(ts0, ts1, .., tsX), (v0, v1, .., vX)]}
 
         (ts0, .., tsN) are timestamps in datetime format and (v0, .., vN) are
-        the actual values. If 'raw' is set to False, then values that have
-        a semantic value equal to PM_SEM_COUNTER, will be returned as follows:
-        Instead of [(ts0, ts1, ts2, .., tsN), (v0, v1, v2, .., vN)] the rates
-        will be returned:
-        ret[metric] = {'indom1':
-        [(ts1, ts2, .., tsN), ((v1-v0)/(ts1-ts0), (v2-v1)/(ts2-ts1), ...)]}'''
+        the actual values. If a metric has no indom 0 will be used as its key'''
 
-        # Make sure we start at the beginning of the archive
+        data = {}
         self.context.pmSetMode(c_api.PM_MODE_FORW, self.start_time, 0)
-        temp_dict = {}
+        skipped_metrics = []
+        # This is just used as an optimization. The keys are (numpmid, numinst) and the value is
+        # the indom name. This avoids too many expensive calls to pmNameInDomArchive
+        indom_map = {}
         while 1:
-            pmids = self.context.pmLookupName(metrics)
-            descs = self.context.pmLookupDescs(pmids)
             try:
-                result = self.context.pmFetch(pmids)
-            except pmapi.pmErr: # Archive is finished
-                break
+                result = self.context.pmFetchArchive()
+            except pmapi.pmErr, error:
+                # Exit if we are at the end of the file or if the record is corrupted
+                # Signal any other issues
+                if error.args[0] in [c_api.PM_ERR_EOL, c_api.PM_ERR_LOGREC]:
+                    break
+                else:
+                    raise error
 
-            # If we're outside the class' defined time interval we simply
-            # ignore the timestamp and value
-            dt = self._timestamp_to_datetime(result.contents.timestamp)
-            if ((self.start and dt < self.start) or
-                (self.end and dt > self.end)):
+            ts = self._timestamp_to_datetime(result.contents.timestamp)
+            if ((self.start and ts < self.start) or
+                (self.end and ts > self.end)):
                 self.context.pmFreeResult(result)
+                if progress:
+                    progress(False)
                 continue
 
-            # New dictionary for every timestamp
-            temp_dict[dt] = {}
-            for metric in range(len(descs)):
-                count = result.contents.get_numval(metric)
-                if count == 0: # No metric value present at this point in time
-                    temp_dict[dt] = None
+            if progress:
+                progress(True)
+            for i in range(result.contents.numpmid):
+                pmid = result.contents.get_pmid(i)
+                desc = self.context.pmLookupDesc(pmid)
+                metric = self.context.pmNameID(pmid)
+                if metric not in data:
+                    data[metric] = {}
+                count = result.contents.get_numval(i)
+                if count <= 1: # No indoms are present
+                    try:
+                        value = self._extract_value(result, desc, i)
+                    except pmapi.pmErr, error:
+                        if error.args[0] in [c_api.PM_ERR_CONV]:
+                            skipped_metrics.append(metric)
+                            continue
+                        raise error
+                    if 0 not in data[metric]:
+                        data[metric][0] = [[ts,], [value,]]
+                    else:
+                        data[metric][0][0].append(ts)
+                        data[metric][0][1].append(value)
                     continue
 
-                try:
-                    (insts, nodes) = self.context.pmGetInDom(descs[metric]) 
-                except:
-                    insts = [0]
-                    nodes = [0]
-                val = {}
-                # FIXME: this min() hack is because if the number of DOMs 
-                # shrinks during the pmFetch loop pmGetIndom() still returns
-                # the non shrinked size and we will segfault. Need to
-                # investigate further
-                for inst in range(min(len(insts), count)):
-                    value = self.context.pmExtractValue(
-                        result.contents.get_valfmt(metric),
-                        result.contents.get_vlist(metric, inst),
-                        descs[metric].contents.type, descs[metric].contents.type)
-
-                    node = nodes[inst]
-                    # FIXME: need to cater for all types
-                    mtype = descs[metric].contents.type
-                    if mtype == c_api.PM_TYPE_STRING:
-                        val[node] = value.cp
-                    elif mtype in [c_api.PM_TYPE_U64, c_api.PM_TYPE_64,
-                                   c_api.PM_TYPE_U32, c_api.PM_TYPE_32]:
-                        val[node] = value.ull
-                    elif mtype == c_api.PM_TYPE_FLOAT:
-                        val[node] = value.f
-                    elif mtype == c_api.PM_TYPE_DOUBLE:
-                        val[node] = value.d
+                for j in range(count):
+                    inst = result.contents.get_inst(i, j)
+                    try:
+                        value = self._extract_value(result, desc, i, j)
+                    except pmapi.pmErr, error:
+                        if error.args[0] in [c_api.PM_ERR_CONV]:
+                            skipped_metrics.append(metric)
+                            continue
+                    if (i, j) not in indom_map:
+                        indom = self.context.pmNameInDomArchive(desc, inst)
+                        indom_map[(i, j)] = indom
                     else:
-                        raise Exception("Metric has odd type: %s[%s]" % (
-                                        metrics[metric], metric))
-                    temp_dict[dt] = val
+                        indom = indom_map[(i, j)]
+                    if indom not in data[metric]:
+                        data[metric][indom] = [[ts,], [value,]]
+                    else:
+                        data[metric][indom][0].append(ts)
+                        data[metric][indom][1].append(value)
+
             self.context.pmFreeResult(result)
 
-        if len(temp_dict) == 0:
-            return {}
-
-        # FIXME: make this cleaner and more pythonic
-        # For users of this method it is simpler if the return data is in
-        # the following form:
-        # { 'indom1': [(ts0, ts1, ..., tsN), (val0, val1, ..., valN)],
-        #   'indom2': [(ts0, ts1, ..., tsN), (val0, val1, ..., valN)],
-        #   ....
-        ret = {}
-        for ts in sorted(temp_dict):
-            tmp = temp_dict[ts]
-            if tmp == None:
-                continue
-            for j in tmp:
-                val = tmp[j]
-                if j not in ret:
-                    ret[j] = [(ts, val)]
-                else:
-                    ret[j].append((ts, val))
-
-        for i in ret:
-            ret[i] = zip(*ret[i])
-            if len(ret[i][0]) != len(ret[i][1]):
-                raise Exception("Error during parsing: {0}".format(ret[i]))
-
-        # if ret[i][1] is all zeroes no need to create the graph
-        # so return empty dict
-        clean_ret = {key: value for key, value in ret.items() 
-                     if not all([ v == 0 for v in value[1]])}
-
-        return clean_ret
+        return (data, skipped_metrics)

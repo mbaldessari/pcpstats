@@ -51,8 +51,8 @@ from pcp_archive import PcpArchive, PcpHelp
 
 # If we should try and create the graphs in parallel
 # brings a nice speedup on multi-core/smp machines
-THREADED = False
-# None means nr of available CPUs
+THREADED = True
+# None means all available CPUs
 NR_CPUS = None
 
 # Inch graph size (width, height)
@@ -71,16 +71,19 @@ def ellipsize(text, limit=100):
         ret = ret + '...'
     return ret
 
-def graph_wrapper((pcparch_obj, metric)):
-    """This is a wrapper due to pool.map() single argument limit"""
-    fname = pcparch_obj._graph_filename([metric])
-    ret = pcparch_obj.create_graph(fname, metric, [metric])
-    if ret:
-        sys.stdout.write(".")
+def progress_callback(graph_added):
+    if graph_added:
+        sys.stdout.write('.')
     else:
-        sys.stdout.write("-")
+        sys.stdout.write('-')
     sys.stdout.flush()
-    return (metric, ret)
+
+def graph_wrapper((pcparch_obj, data)):
+    """This is a wrapper due to pool.map() single argument limit"""
+    (label, fname, metrics, text) = data
+    ret = pcparch_obj.create_graph(fname, label, metrics)
+    progress_callback(ret)
+    return ((label, fname, metrics, text), ret)
 
 def print_mem_usage(data):
     usage = resource.getrusage(resource.RUSAGE_SELF)
@@ -189,12 +192,17 @@ class PcpStats(object):
 
     def parse(self):
         '''Parses the archive and stores all the metrics in self.all_data'''
-        for metric in self.metrics:
-            sys.stdout.write('.')
-            sys.stdout.flush()
-            self.all_data[metric] = self.pcparchive.get_values(metric)
+        (all_data, self.skipped_graphs) = self.pcparchive.get_values(progress=progress_callback)
+        if len(self.skipped_graphs) > 0:
+            print('skipped {0} graphs'.format(len(self.skipped_graphs)))
 
-    def category(self, metrics):
+        # Prune all the sets of values where all values are zero as it makes
+        # no sense to show those
+        for metric in all_data:
+            self.all_data[metric] = {key: value for key, value in all_data[metric].items()
+                                     if not all([ v == 0 for v in value[1]])}
+
+    def get_category(self, metrics):
         '''Return the category given one or a list of metric strings'''
         if isinstance(metrics, str):
             return metrics.split('.')[0]
@@ -357,7 +365,7 @@ class PcpStats(object):
         print('Creating graphs: ', end='')
         if THREADED:
             pool = multiprocessing.Pool(NR_CPUS)
-            l = zip(repeat(self), numeric_metrics)
+            l = zip(repeat(self), self.all_graphs)
             metrics_rets = pool.map(graph_wrapper, l)
             (metrics, rets) = zip(*metrics_rets)
             done_metrics = [metric for (metric, ret) in metrics_rets if ret]
@@ -365,12 +373,11 @@ class PcpStats(object):
             for graph in self.all_graphs:
                 (label, fname, metrics, text) = graph
                 if self.create_graph(fname, label, metrics):
-                    sys.stdout.write('.')
+                    progress_callback(True)
                     done_metrics.append(graph)
                 else:
                     # Graphs had all zero values
-                    sys.stdout.write('-')
-                sys.stdout.flush()
+                    progress_callback(False)
 
         print()
         # Build the string metrics table. It only prints
@@ -407,7 +414,7 @@ class PcpStats(object):
         last_category = ''
         for graph in done_metrics:
             (label, fname, metrics, text) = graph
-            category = self.category(metrics)
+            category = self.get_category(metrics)
             if last_category != category:
                 # FIXME: _do_heading should be moved in some other class/object/module
                 self._do_heading(category, doc.h1)

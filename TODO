@@ -58,3 +58,5 @@
   to distringuish which label (indom) is associated with which metric. Fero example:
   ./pcpstats --include 'network.*' --graph 'foo:network.interface.in.bytes,network.interface.out.bytes' 
   tests/pcp-files/server1.internal/20140510.08.47.0
+
+- Add a default set of custom graphs that are always automatically included
