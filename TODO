@@ -42,8 +42,6 @@
 
 - Add bash autocompletion
 
-- Make PcpStats.category return (prefix, metrics) and not just prefix
-
 - Currently if you create a custom graph with two metrics that have the same indoms it is impossible
   to distringuish which label (indom) is associated with which metric. Fero example:
   ./pcpstats --include 'network.*' --graph 'foo:network.interface.in.bytes,network.interface.out.bytes' 
