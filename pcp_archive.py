@@ -118,9 +118,13 @@ class PcpArchive(object):
         return self.context.pmGetContextHostName()
 
     def get_metrics(self):
-        '''Returns a list of tuples of (metric, type) of all the metrics contained
-        in the archive'''
+        '''Returns a list of metric labels of all the metrics contained in
+        the archive'''
         return self.pmns.keys()
+
+    def get_metric_info(self, metric):
+        '''Given a metric label, return (type, sem, units)'''
+        return self.pmns[metric]
 
     def get_pmids(self, metrics):
         '''Given a list of metrics, returns a list of PMIDs'''

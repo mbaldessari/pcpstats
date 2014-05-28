@@ -48,6 +48,7 @@ if USE_MELIAE:
 
 from pcp_style import PcpDocTemplate
 from pcp_archive import PcpArchive, PcpHelp
+import cpmapi as c_api
 
 # If we should try and create the graphs in parallel
 # brings a nice speedup on multi-core/smp machines
@@ -95,10 +96,11 @@ class PcpStats(object):
     story = []
 
     def __init__(self, args, start_time=None, end_time=None, inc=None, exc=None,
-                 graphs=None):
+                 graphs=None, raw=False):
         self.args = args
         self.pcphelp = PcpHelp()
         self.pcparchive = PcpArchive(args, start=start_time, end=end_time)
+        self.raw = raw
         # Using /var/tmp as /tmp is ram-mounted these days
         self.tempdir = tempfile.mkdtemp(prefix='pcpstats', dir='/var/tmp')
         # This will contain all the metrics found in the archive file
@@ -190,17 +192,80 @@ class PcpStats(object):
         h._bookmarkName = bn
         self.story.append(h)
 
+    def rate_convert(self, timestamps, values):
+        '''Given a list of timestamps and a list of values it will return the
+        following:
+        [[t1, t2, ..., tN], [(v1-v0)/(t1-t0), (v2-v1)/(t2-t1), ..., (vN-vN-1)/(tN -tN-1)]
+        '''
+        if len(timestamps) != len(values):
+            raise Exception('Len of timestamps must be equal to len of values')
+        new_timestamps = []
+        new_values = []
+        for t in range(1, len(timestamps)):
+            delta = timestamps[t] - timestamps[t-1]
+            new_timestamps.append(delta)
+
+        for v in range(1, len(values)):
+            seconds = new_timestamps[v-1].total_seconds()
+            try:
+                delta = (values[v] - values[v-1]) / seconds
+            except ZeroDivisionError:
+                # If we have a zero interval but the values difference is zero
+                # return 0 anyway
+                if values[v] - values[v-1] == 0:
+                    delta = 0
+                    pass
+                else:
+                    # if the delta between the values is not zero try to use
+                    # the previous calculated delta
+                    if v > 1:
+                        delta = new_values[v - 2]
+                    else: # In all other cases just set the delta to 0
+                        delta = 0
+                    pass
+
+            new_values.append(delta)
+
+        # Add previous datetime to the time delta
+        for t in range(len(new_timestamps)):
+            ts = new_timestamps[t]
+            new_timestamps[t] = ts + timestamps[t]
+
+        return (new_timestamps, new_values)
+
     def parse(self):
-        '''Parses the archive and stores all the metrics in self.all_data'''
+        '''Parses the archive and stores all the metrics in self.all_data. Returns a dictionary
+        containing the metrics which have been rate converted'''
         (all_data, self.skipped_graphs) = self.pcparchive.get_values(progress=progress_callback)
         if len(self.skipped_graphs) > 0:
-            print('skipped {0} graphs'.format(len(self.skipped_graphs)))
+            print('skipped {0} graphs'.format(len(self.skipped_graphs)), end='')
 
+        rate_converted = {}
         # Prune all the sets of values where all values are zero as it makes
         # no sense to show those
         for metric in all_data:
+            rate_converted[metric] = False
             self.all_data[metric] = {key: value for key, value in all_data[metric].items()
                                      if not all([ v == 0 for v in value[1]])}
+
+        if self.raw: # User explicitely asked to not rate convert any metrics
+            return rate_converted
+
+        # Rate convert all the PM_SEM_COUNTER metrics
+        for metric in self.all_data:
+            (mtype, msem, munits) = self.pcparchive.get_metric_info(metric)
+            if msem != c_api.PM_SEM_COUNTER:
+                continue
+
+            for indom in self.all_data[metric]:
+                data = self.all_data[metric][indom]
+                (ts, val) = self.rate_convert(data[0], data[1])
+                self.all_data[metric][indom] = [ts, val]
+                if rate_converted[metric] == False:
+                    rate_converted[metric] = {}
+                rate_converted[metric][indom] = True
+
+        return rate_converted
 
     def get_category(self, metrics):
         '''Return the category given one or a list of metric strings'''
@@ -323,7 +388,7 @@ class PcpStats(object):
     def output(self, output_file='output.pdf'):
         sys.stdout.write('Parsing archive: ')
         sys.stdout.flush()
-        self.parse()
+        rate_converted = self.parse()
         print()
         doc = PcpDocTemplate(output_file, pagesize=landscape(A4))
         hostname = self.pcparchive.get_hostname()
@@ -355,9 +420,13 @@ class PcpStats(object):
                 string_metrics.append(metric)
             else:
                 fname = self._graph_filename([metric])
-                text = None
+                units = self.pcparchive.get_metric_info(metric)[2]
+                text = '%s' % units
                 if isinstance(metric, str) and metric in self.pcphelp.help_text:
-                    text = '<strong>%s</strong>: %s' % (metric, self.pcphelp.help_text[metric])
+                    text = '<strong>%s</strong>: %s (%s)' % (metric, self.pcphelp.help_text[metric],
+                            units)
+                if rate_converted[metric] != False:
+                    text = text + ' - <em>%s</em>' % 'rate converted'
                 self.all_graphs.append((metric, fname, [metric], text))
 
         done_metrics = []

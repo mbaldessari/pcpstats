@@ -1,13 +1,3 @@
-- Some metrics make more sense to be plotted divided by time
-  (kernel.cpu.all.* for example)
-  Values of counter semantics metrics (PM_SEM_COUNTER) are commonly
-  reported after rate conversion (requires successive samples, and
-  the value plotted is the value-delta divided by the time-delta), so
-  that MB/sec, or utilizations, are reported instead of raw values.
-
-- Make the parsing of the archive SMP-aware (currently only the graph
-  generation via matplotlib is SMP-aware)
-
 - Cluster together within a table all the metrics that share an indom
   so either a table that shows all the metrics shared by the same indom.
   Like: eth0: network.interface.in.bytes, network.interface.mtu, ...
@@ -60,3 +50,7 @@
   tests/pcp-files/server1.internal/20140510.08.47.0
 
 - Add a default set of custom graphs that are always automatically included
+
+- Verify that all the maths in rate conversion are always correct
+
+- Run the code through pylint and pyflake
