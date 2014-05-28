@@ -80,6 +80,9 @@ if __name__ == '__main__':
                         semantic associated with them. By default those are converted via;
                         (value(T) - value(T-1)) / T - T-1''')
 
+    parser.add_argument('--output', default='output.pdf', dest='output', help='''
+                        Set the name of the output file''')
+
     args = parser.parse_args()
 
     if args.version:
@@ -124,6 +127,6 @@ if __name__ == '__main__':
     if args.list_metrics:
         pcpstats.print_info()
     else:
-        pcpstats.output()
+        pcpstats.output(output_file=args.output)
 
 # vim: autoindent tabstop=4 expandtab smarttab shiftwidth=4 softtabstop=4 tw=0
