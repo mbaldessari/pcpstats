@@ -52,3 +52,5 @@
 - Verify that all the maths in rate conversion are always correct
 
 - Run the code through pylint and pyflake
+
+- Add test cases that exercise all possible command arguments
