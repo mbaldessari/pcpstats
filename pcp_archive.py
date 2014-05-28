@@ -56,6 +56,7 @@ class PcpArchive(object):
     pcparchive = ''
     context = None
     result = None
+    # keys is the metric string. Value is (type, sem, units)
     pmns = {}
 
     def __init__(self, pcp_fname, start=None, end=None):
@@ -78,7 +79,9 @@ class PcpArchive(object):
 
     def _pmns_callback(self, label):
         '''Callback for the PMNS tree walk'''
-        self.pmns[label] = None
+        pmid = self.context.pmLookupName(label)
+        desc = self.context.pmLookupDesc(pmid[0])
+        self.pmns[label] = (desc.type, desc.sem, desc.contents.units)
 
     def _extract_value(self, result, desc, i, inst=0):
         '''Return python value given a pmExtractValue set of parameters'''
@@ -115,7 +118,7 @@ class PcpArchive(object):
         return self.context.pmGetContextHostName()
 
     def get_metrics(self):
-        '''Returns a list of strings of the metrics contained
+        '''Returns a list of tuples of (metric, type) of all the metrics contained
         in the archive'''
         return self.pmns.keys()
 
