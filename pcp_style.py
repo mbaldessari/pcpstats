@@ -21,6 +21,14 @@ from reportlab.platypus.doctemplate import PageTemplate, BaseDocTemplate
 from reportlab.platypus.tableofcontents import TableOfContents
 from reportlab.platypus.frames import Frame
 from reportlab.lib.units import inch
+import reportlab.lib.colors
+
+tablestyle = [ ('GRID', (0,0), (-1,-1), 1, reportlab.lib.colors.black),
+               ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+               ('LEFTPADDING', (0,0), (-1,-1), 3),
+               ('RIGHTPADDING', (0,0), (-1,-1), 3),
+               ('FONTSIZE', (0,0), (-1,-1), 10),
+               ('FONTNAME', (0,0), (-1,0), 'Times-Bold'), ]
 
 class PcpDocTemplate(BaseDocTemplate):
     """Custom Doc Template in order to have bookmarks

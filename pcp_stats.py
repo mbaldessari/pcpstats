@@ -32,7 +32,6 @@ from reportlab.platypus.paragraph import Paragraph
 from reportlab.platypus import PageBreak, Image, Spacer, Table
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import inch
-import reportlab.lib.colors
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -46,7 +45,7 @@ if USE_MELIAE:
     from meliae import scanner, loader
     import objgraph
 
-from pcp_style import PcpDocTemplate
+from pcp_style import PcpDocTemplate, tablestyle
 from pcp_archive import PcpArchive, PcpHelp
 import cpmapi as c_api
 
@@ -331,7 +330,7 @@ class PcpStats(object):
             values = self.all_data[metric]
             for indom in sorted(values):
                 (timestamps, dataset) = values[indom]
-                # FIXME: currently if there is only one (timestamp,value) like with filesys.blocksize
+                # Currently if there is only one (timestamp,value) like with filesys.blocksize
                 # we just do not graph the thing
                 if len(timestamps) <= 1:
                     continue
@@ -463,12 +462,6 @@ class PcpStats(object):
                         data.append((metric, '%s' % ts, text))
                         last_value = v
 
-        tablestyle = [ ('GRID', (0,0), (-1,-1), 1, reportlab.lib.colors.black),
-                       ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-                       ('LEFTPADDING', (0,0), (-1,-1), 3),
-                       ('RIGHTPADDING', (0,0), (-1,-1), 3),
-                       ('FONTSIZE', (0,0), (-1,-1), 10),
-                       ('FONTNAME', (0,0), (-1,0), 'Times-Bold'), ]
         if len(data) > 1:
             self._do_heading('String metrics', doc.h1)
             self.story.append(Spacer(1, 0.2 * inch))
@@ -485,7 +478,6 @@ class PcpStats(object):
             (label, fname, metrics, text) = graph
             category = self.get_category(metrics)
             if last_category != category:
-                # FIXME: _do_heading should be moved in some other class/object/module
                 self._do_heading(category, doc.h1)
                 last_category = category
 

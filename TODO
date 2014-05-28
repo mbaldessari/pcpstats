@@ -31,8 +31,6 @@
 
 - Make use of the convenience pmcc.py class
 
-- Kill the numerous FIXME in the code
-
 - Create a manpage directly from the argparse text?
   (https://andialbrecht.wordpress.com/2009/03/17/creating-a-man-page-with-distutils-and-optparse/)
   (http://bugs.python.org/issue14102)
