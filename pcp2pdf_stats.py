@@ -236,17 +236,22 @@ class PcpStats(object):
         '''Parses the archive and stores all the metrics in self.all_data. Returns a dictionary
         containing the metrics which have been rate converted'''
         (all_data, self.skipped_graphs) = self.pcparchive.get_values(progress=progress_callback)
-        print(' total of {0} graphs'.format(len(all_data), end=''))
+        print(' total of {0} graphs'.format(len(all_data)), end='')
         if len(self.skipped_graphs) > 0:
-            print(' skipped {0} graphs'.format(len(self.skipped_graphs)), end='')
+            print(' - skipped {0} graphs'.format(len(self.skipped_graphs)), end='')
 
         rate_converted = {}
         # Prune all the sets of values where all values are zero as it makes
         # no sense to show those
         for metric in all_data:
             rate_converted[metric] = False
-            self.all_data[metric] = {key: value for key, value in all_data[metric].items()
-                                     if not all([ v == 0 for v in value[1]])}
+            tmp = {key: value for key, value in all_data[metric].items()
+                   if not all([ v == 0 for v in value[1]])}
+            if len(tmp) > 0:
+                self.all_data[metric] = tmp
+
+        print(' - total of non-fully zeroed graphs {0}'.format(len(self.all_data)), end='')
+
 
         if self.raw: # User explicitely asked to not rate convert any metrics
             return rate_converted
@@ -420,7 +425,7 @@ class PcpStats(object):
             text = None
             custom_metrics = []
             for metric in metrics: # verify that the custom graph's metrics actually exist
-                if metric in self.metrics:
+                if metric in self.all_data:
                     custom_metrics.append(metric)
 
             if len(custom_metrics) > 0:
@@ -428,7 +433,7 @@ class PcpStats(object):
                     text = '<strong>%s</strong>: %s' % (metrics, self.pcphelp.help_text[metrics])
                 self.all_graphs.append((label, fname, custom_metrics, text))
 
-        for metric in self.metrics:
+        for metric in sorted(self.all_data):
             if self.is_string_metric(metric):
                 string_metrics.append(metric)
             else:
