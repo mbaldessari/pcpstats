@@ -46,7 +46,7 @@ class PcpHelp(object):
         for metric in self.pmns:
             try:
                 pmid = self.context.pmLookupName(metric)
-                text = self.context.pmLookupText(pmid[0])
+                text = self.context.pmLookupText(pmid[0], kind = c_api.PM_TEXT_HELP)
                 self.help_text[metric] = text
             except:
                 pass
